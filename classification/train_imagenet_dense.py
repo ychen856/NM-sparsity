@@ -8,7 +8,8 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data.distributed import DistributedSampler
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torchvision import datasets
+from torch.utils.data import Dataset, DataLoader
 import yaml
 import sys
 from tensorboardX import SummaryWriter
@@ -25,7 +26,7 @@ from devkit.dataset.imagenet_dataset import ColorAugmentation, ImagenetDataset
 
 parser = argparse.ArgumentParser(
     description='Pytorch Imagenet Training')
-parser.add_argument('--config', default='configs/config_resnet50_2:4.yaml')
+parser.add_argument('--config', default='configs/config_resnet50.yaml')
 parser.add_argument("--local_rank", type=int)
 parser.add_argument(
     '--port', default=29500, type=int, help='port of server')
@@ -57,7 +58,7 @@ def main():
 
     # create model
     print("=> creating model '{}'".format(args.model))
-    model = models.__dict__[args.model](N = args.N, M = args.M)
+    model = models.__dict__[args.model]()
 
 
     model.cuda()
@@ -88,7 +89,7 @@ def main():
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-
+    '''
     train_dataset = ImagenetDataset(
         args.train_root,
         args.train_source,
@@ -108,7 +109,24 @@ def main():
             transforms.ToTensor(),
             normalize,
         ]))
-
+    '''
+    train_dataset = datasets.ImageFolder(
+        args.train_root,
+        transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            ColorAugmentation(),
+            normalize,
+        ]))
+    val_dataset = datasets.ImageFolder(
+        args.val_root,
+        transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ]))
     train_sampler = DistributedSampler(train_dataset)
     val_sampler = DistributedSampler(val_dataset)
 
@@ -225,7 +243,6 @@ def validate(val_loader, model, criterion, epoch, writer):
     model.eval()
     world_size = args.world_size
     rank = args.rank
-
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
@@ -304,7 +321,8 @@ def accuracy(output, target, topk=(1,)):
 
     res = []
     for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+        #correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+        correct_k = correct[:k].flatten().float().sum(0, keepdim=True)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 

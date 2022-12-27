@@ -1,1 +1,0 @@
-srun --job-name=sparse_raft -p xxxx -n1 --gres=gpu:2 --mpi=pmi2 python -m torch.distributed.launch  --nproc_per_node=2 --master_port 23311  train.py --name sparse_raft-chairs --stage chairs --validation chairs --num_steps 200000 --batch_size 4 --lr 0.0004 --image_size 368 496 --wdecay 0.0001

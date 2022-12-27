@@ -13,27 +13,27 @@ from devkit.sparse_ops import SparseConv
 
 
 
-__all__ = ['ResNetV1', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152']
+__all__ = ['ResNetV1_dense', 'resnet18_dense', 'resnet34_dense', 'resnet50_dense', 'resnet101_dense',
+           'resnet152_dense']
 
 
 
-def conv3x3(in_planes, out_planes, stride=1, N=2, M=4):
+def conv3x3_dense(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
-    return SparseConv(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False, N=N, M=M)
+    return nn.Conv2d(in_channels=in_planes, out_channels=out_planes, kernel_size=3, stride=stride,
+                     padding=1)
 
 
-class BasicBlock(nn.Module):
+class BasicBlock_dense(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, N=2, M=4):
-        super(BasicBlock, self).__init__()
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(BasicBlock_dense, self).__init__()
 
-        self.conv1 = conv3x3(inplanes, planes, stride, N=N, M=M)
+        self.conv1 = conv3x3_dense(inplanes, planes, stride)
         self.bn1 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes, N=N, M=M)
+        self.conv2 = conv3x3_dense(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes)
         self.downsample = downsample
         self.stride = stride
@@ -56,18 +56,18 @@ class BasicBlock(nn.Module):
 
         return out
 
-class Bottleneck(nn.Module):
+class Bottleneck_dense(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, N=2, M=4):
-        super(Bottleneck, self).__init__()
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(Bottleneck_dense, self).__init__()
 
-        self.conv1 = SparseConv(inplanes, planes, kernel_size=1, bias=False, N=N, M=M)
+        self.conv1 = nn.Conv2d(in_channels=inplanes, out_channels=planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = SparseConv(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False, N=N, M=M)
+        self.conv2 = nn.Conv2d(in_channels=planes, out_channels=planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = SparseConv(planes, planes * 4, kernel_size=1, bias=False, N=N, M=M)
+        self.conv3 = nn.Conv2d(in_channels=planes, out_channels=planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
@@ -95,25 +95,21 @@ class Bottleneck(nn.Module):
 
         return out
 
-class ResNetV1(nn.Module):
+class ResNetV1_dense(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, N=2, M=4):
-        super(ResNetV1, self).__init__()
-
-
-        self.N = N
-        self.M = M
+    def __init__(self, block, layers, num_classes=1000):
+        super(ResNetV1_dense, self).__init__()
 
         self.inplanes = 64
-        self.conv1 = SparseConv(3, 64, kernel_size=7, stride=2, padding=3,
-                               bias=False, N=self.N, M=self.M)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0], N = self.N, M = self.M)
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, N = self.N, M = self.M)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, N = self.N, M = self.M)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, N = self.N, M = self.M)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7, stride=1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -122,20 +118,20 @@ class ResNetV1(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
 
-    def _make_layer(self, block, planes, blocks, stride=1, N = 2, M = 4):
+    def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
-                SparseConv(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False,  N=N, M=M),
+                nn.Conv2d(in_channels=self.inplanes, out_channels=planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample, N=N, M=M))
+        layers.append(block(self.inplanes, planes, stride, downsample))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, N=N, M=M))
+            layers.append(block(self.inplanes, planes))
 
         return nn.Sequential(*layers)
 
@@ -158,26 +154,27 @@ class ResNetV1(nn.Module):
         return x
 
 
-def resnet18(**kwargs):
-    model = ResNetV1(BasicBlock, [2, 2, 2, 2],  **kwargs)
+def resnet18_dense(**kwargs):
+    model = ResNetV1_dense(BasicBlock_dense, [2, 2, 2, 2],  **kwargs)
     return model
 
 
-def resnet34(**kwargs):
-    model = ResNetV1(BasicBlock, [3, 4, 6, 3], **kwargs)
+def resnet34_dense(**kwargs):
+    model = ResNetV1_dense(BasicBlock_dense, [3, 4, 6, 3], **kwargs)
     return model
 
 
-def resnet50(**kwargs):
-    model = ResNetV1(Bottleneck, [3, 4, 6, 3],  **kwargs)
+def resnet50_dense(**kwargs):
+    model = ResNetV1_dense(Bottleneck_dense, [3, 4, 6, 3],  **kwargs)
     return model
 
 
-def resnet101(**kwargs):
-    model = ResNetV1(Bottleneck, [3, 4, 23, 3], **kwargs)
+def resnet101_dense(**kwargs):
+    model = ResNetV1_dense(Bottleneck_dense, [3, 4, 23, 3], **kwargs)
     return model
 
 
-def resnet152(**kwargs):
-    model = ResNetV1(Bottleneck, [3, 8, 36, 3], **kwargs)
+def resnet152_dense(**kwargs):
+    model = ResNetV1_dense(Bottleneck_dense, [3, 8, 36, 3], **kwargs)
     return model
+
